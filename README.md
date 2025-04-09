@@ -1,61 +1,78 @@
-# Electron Webový Prohlížeč
+# Electron Web Browser
 
-Moderní webový prohlížeč vytvořený s pomocí Electronu s vlastní titulní lištou ve stylu macOS a podporou panelů.
+A modern web browser built with Electron, featuring a custom macOS-style title bar and tab support.
 
-## Funkce
+## Features
 
-- Vlastní titulní lišta ve stylu macOS
-- Podpora více panelů
-- Moderní čistý design
-- Navigační tlačítka (zpět, vpřed, obnovit, domů)
-- Adresní řádek s vyhledáváním
+- Custom macOS-style title bar
+- Multi-tab support
+- Modern clean design
+- Navigation controls (back, forward, refresh, home)
+- Address bar with search functionality
+- Password manager
+  - Save and manage website credentials
+  - Auto-fill login forms
+  - Edit and delete saved passwords
+  - Support for multiple password sources (local, keychain, browsers)
+- Theme support (light/dark/system)
+- URL suggestions and history
 
-## Technologie
+## Technologies
 
 - Electron
 - HTML/CSS/JavaScript
-- Font Awesome pro ikony
+- Font Awesome icons
+- System Keychain integration
 
-## Instalace
+## Installation
 
 ```bash
-# Naklonování repozitáře
+# Clone the repository
 git clone <repository-url>
 cd electron-browser
 
-# Instalace závislostí
+# Install dependencies
 npm install
 ```
 
-## Použití
+## Usage
 
 ```bash
-# Spuštění aplikace
+# Start the application
 npm start
 
-# Sestavení aplikace
+# Build the application
 npm run build
 ```
 
-## Ovládání
+## Controls
 
-- Kliknutí na + vytvoří nový panel
-- Kliknutí na panel ho aktivuje
-- Kliknutí na X u panelu ho zavře
-- Adresní řádek slouží k zadávání URL nebo vyhledávání
+- Click + to create a new tab
+- Click on a tab to activate it
+- Click X on a tab to close it
+- Use the address bar to enter URLs or search
+- Click the key icon to open password manager
+- Click the gear icon to open settings
 
-## Struktura projektu
+## Password Manager
+
+- Click the key icon in the toolbar to open the password manager
+- Click "Add Password" to save new credentials
+- Click edit icon on a password item to modify it
+- Click delete icon to remove saved credentials
+- Click on a password item to auto-fill it in the active tab
+
+## Project Structure
 
 ```
 electron-browser/
-├── src/                      # Zdrojové soubory
-│   ├── main.js               # Hlavní proces Electron
-│   ├── preload.js            # Preload skript
-│   ├── renderer.js           # Renderer proces
-│   ├── index.html            # Hlavní HTML soubor
-│   ├── styles/               # CSS styly
-│   │   └── styles.css        # Hlavní CSS soubor
-│   └── assets/               # Další zdroje (obrázky atd.)
-├── package.json              # Konfigurace projektu
-└── README.md                 # Dokumentace
-``` 
+├── src/                      # Source files
+│   ├── main.js               # Electron main process
+│   ├── preload.js            # Preload script
+│   ├── renderer.js           # Renderer process
+│   ├── index.html            # Main HTML file
+│   ├── styles/               # CSS styles
+│   │   └── styles.css        # Main CSS file
+│   └── assets/               # Additional resources (images etc.)
+├── package.json              # Project configuration
+└── README.md                 # Documentation

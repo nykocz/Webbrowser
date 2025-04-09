@@ -1196,9 +1196,34 @@ function createPasswordItem(password) {
   info.appendChild(domain);
   info.appendChild(username);
   
+  const actions = document.createElement('div');
+  actions.className = 'password-actions';
+
+  const editButton = document.createElement('button');
+  editButton.className = 'password-action-button';
+  editButton.innerHTML = '<i class="fas fa-edit"></i>';
+  editButton.title = 'Upravit';
+  editButton.onclick = (e) => {
+    e.stopPropagation();
+    editPassword(password);
+  };
+
+  const deleteButton = document.createElement('button');
+  deleteButton.className = 'password-action-button';
+  deleteButton.innerHTML = '<i class="fas fa-trash"></i>';
+  deleteButton.title = 'Smazat';
+  deleteButton.onclick = (e) => {
+    e.stopPropagation();
+    deletePassword(password);
+  };
+
+  actions.appendChild(editButton);
+  actions.appendChild(deleteButton);
+
   item.appendChild(favicon);
   item.appendChild(info);
-  
+  item.appendChild(actions);
+
   // Událost kliknutí pro automatické vyplnění
   item.addEventListener('click', () => {
     fillCredentials(password);
@@ -1525,6 +1550,94 @@ function updateAcrylicEffect() {
   // Pro budoucí implementaci s Electron API pro nastavení vibrancy/opacity okna
   // V tomto příkladu používáme CSS pro simulaci efektu
 }
+
+// Funkce pro přidání nového hesla
+function showPasswordForm(password = null) {
+  const passwordForm = document.getElementById('password-form');
+  const domainInput = document.getElementById('password-domain');
+  const usernameInput = document.getElementById('password-username');
+  const passwordInput = document.getElementById('password-value');
+
+  if (password) {
+    domainInput.value = password.domain;
+    usernameInput.value = password.username;
+    passwordInput.value = password.password;
+    passwordForm.dataset.editId = password.id;
+  } else {
+    domainInput.value = '';
+    usernameInput.value = '';
+    passwordInput.value = '';
+    delete passwordForm.dataset.editId;
+  }
+
+  passwordForm.style.display = 'block';
+}
+
+function hidePasswordForm() {
+  const passwordForm = document.getElementById('password-form');
+  passwordForm.style.display = 'none';
+}
+
+function savePassword() {
+  const passwordForm = document.getElementById('password-form');
+  const domainInput = document.getElementById('password-domain');
+  const usernameInput = document.getElementById('password-username');
+  const passwordInput = document.getElementById('password-value');
+
+  const domain = domainInput.value.trim();
+  const username = usernameInput.value.trim();
+  const password = passwordInput.value;
+
+  if (!domain || !username || !password) {
+    alert('Vyplňte prosím všechna pole');
+    return;
+  }
+
+  const newPassword = {
+    id: passwordForm.dataset.editId || `local-${Date.now()}`,
+    domain,
+    username,
+    password,
+    source: 'local',
+    lastUsed: Date.now()
+  };
+
+  if (passwordForm.dataset.editId) {
+    // Editace existujícího hesla
+    const index = savedPasswords.findIndex(p => p.id === passwordForm.dataset.editId);
+    if (index !== -1) {
+      savedPasswords[index] = newPassword;
+    }
+  } else {
+    // Přidání nového hesla
+    savedPasswords.push(newPassword);
+  }
+
+  localStorage.setItem('savedPasswords', JSON.stringify(savedPasswords));
+  updatePasswordLists();
+  hidePasswordForm();
+}
+
+function editPassword(password) {
+  showPasswordForm(password);
+}
+
+function deletePassword(password) {
+  if (confirm(`Opravdu chcete smazat heslo pro ${password.domain}?`)) {
+    savedPasswords = savedPasswords.filter(p => p.id !== password.id);
+    localStorage.setItem('savedPasswords', JSON.stringify(savedPasswords));
+    updatePasswordLists();
+  }
+}
+
+// Událost pro tlačítko přidání hesla
+document.getElementById('add-password-button').addEventListener('click', () => {
+  showPasswordForm();
+});
+
+// Události pro tlačítka ve formuláři
+document.getElementById('save-password-button').addEventListener('click', savePassword);
+document.getElementById('cancel-password-button').addEventListener('click', hidePasswordForm);
 
 // Událost pro tlačítko hesel
 passwordButton.addEventListener('click', togglePasswordMenu);

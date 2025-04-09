@@ -109,6 +109,23 @@
         </div>
       </div>
       <div class="password-section">
+        <div class="password-section-header">
+          <div class="password-section-title">Správa hesel</div>
+          <button id="add-password-button" class="button primary-button">
+            <i class="fas fa-plus"></i> Přidat heslo
+          </button>
+        </div>
+        <div id="password-form" class="password-form" style="display: none;">
+          <input type="text" id="password-domain" placeholder="Doména (např. google.com)" class="password-input">
+          <input type="text" id="password-username" placeholder="Uživatelské jméno" class="password-input">
+          <input type="password" id="password-value" placeholder="Heslo" class="password-input">
+          <div class="password-form-buttons">
+            <button id="save-password-button" class="button primary-button">Uložit</button>
+            <button id="cancel-password-button" class="button secondary-button">Zrušit</button>
+          </div>
+        </div>
+      </div>
+      <div class="password-section">
         <div class="password-section-title">Naposledy použité</div>
         <div class="password-list" id="recent-passwords">
           <!-- Seznam hesel bude dynamicky přidán pomocí JS -->
