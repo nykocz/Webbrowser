@@ -1,0 +1,29 @@
+{
+  "name": "electron-browser",
+  "version": "1.0.0",
+  "description": "Jednoduchý Electron prohlížeč s podporou Keychain",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "cross-env NODE_ENV=development electron .",
+    "build": "electron-builder",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "electron",
+    "browser",
+    "keychain"
+  ],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "chokidar": "^3.6.0",
+    "electron": "^36.0.0-beta.4",
+    "electron-builder": "^24.6.4"
+  },
+  "dependencies": {
+    "@fortawesome/fontawesome-free": "^6.4.2",
+    "cross-env": "^7.0.3",
+    "keytar": "^7.9.0"
+  }
+}

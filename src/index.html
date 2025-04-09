@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src *; img-src 'self' data: https:; object-src 'none'; frame-src *; child-src 'self' blob: data: https:; webview-src *">
+  <title>Electron Prohlížeč</title>
+  <link rel="stylesheet" href="./styles/styles.css">
+  <link rel="stylesheet" href="../node_modules/@fortawesome/fontawesome-free/css/all.min.css">
+</head>
+<body>
+  <!-- Vlastní titulní lišta ve stylu macOS -->
+  <div class="titlebar">
+    <div class="window-controls">
+      <div class="window-control close-button" id="close-button"></div>
+      <div class="window-control minimize-button" id="minimize-button"></div>
+      <div class="window-control maximize-button" id="maximize-button"></div>
+    </div>
+    
+    <!-- Panely prohlížeče -->
+    <div class="tabs-container" id="tabs-container">
+      <!-- Panely budou dynamicky přidávány pomocí JS -->
+    </div>
+    
+    <!-- Tlačítko pro nový panel -->
+    <div class="new-tab-button" id="new-tab-button">
+      <i class="fas fa-plus"></i>
+    </div>
+  </div>
+  
+  <!-- Adresní řádek -->
+  <div class="address-bar">
+    <div class="navigation-buttons">
+      <div class="nav-left-buttons">
+        <div class="nav-button" id="back-button">
+          <i class="fas fa-arrow-left"></i>
+        </div>
+        <div class="nav-button" id="forward-button">
+          <i class="fas fa-arrow-right"></i>
+        </div>
+        <div class="nav-button" id="reload-button">
+          <i class="fas fa-redo"></i>
+        </div>
+        <div class="nav-button" id="home-button">
+          <i class="fas fa-home"></i>
+        </div>
+        <div class="nav-button" id="bookmark-button">
+          <i class="far fa-bookmark"></i>
+        </div>
+      </div>
+    </div>
+    
+    <div class="url-input-container">
+      <input type="text" class="url-input" id="url-input" placeholder="Zadejte adresu nebo vyhledávejte...">
+      <div class="url-suggestions" id="url-suggestions">
+        <!-- Našeptávané položky budou dynamicky přidávány pomocí JS -->
+      </div>
+    </div>
+    
+    <div class="nav-right-buttons">
+      <div class="nav-button" id="password-button">
+        <i class="fas fa-key"></i>
+      </div>
+      <div class="nav-button" id="settings-button">
+        <i class="fas fa-cog"></i>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Kontejner pro webview -->
+  <div class="webview-container" id="webview-container">
+    <!-- Webviews budou dynamicky přidávány pomocí JS -->
+    <!-- Ukázka webview, která bude dynamicky vytvořena -->
+    <!-- <webview src="https://www.google.com" allowpopups></webview> -->
+  </div>
+  
+  <!-- Keychain našeptávání pro formuláře -->
+  <div class="keychain-suggestions" id="keychain-suggestions">
+    <div class="keychain-header">Uložené přihlašovací údaje</div>
+    <div id="keychain-items">
+      <!-- Našeptávané položky z Keychain budou dynamicky přidávány pomocí JS -->
+    </div>
+  </div>
+  
+  <!-- Menu správce hesel -->
+  <div class="password-menu" id="password-menu">
+    <div class="password-menu-header">
+      <div class="password-menu-title">Správce hesel</div>
+      <div class="password-menu-close" id="password-menu-close">
+        <i class="fas fa-times"></i>
+      </div>
+    </div>
+    <div class="password-menu-content">
+      <div class="password-section">
+        <div class="password-section-title">Zdroje hesel</div>
+        <div class="password-sources">
+          <label>
+            <input type="checkbox" id="keychain-source" checked> Keychain (macOS)
+          </label>
+          <label>
+            <input type="checkbox" id="safari-source" checked> Safari
+          </label>
+          <label>
+            <input type="checkbox" id="chrome-source" checked> Chrome
+          </label>
+          <label>
+            <input type="checkbox" id="firefox-source" checked> Firefox
+          </label>
+        </div>
+      </div>
+      <div class="password-section">
+        <div class="password-section-title">Naposledy použité</div>
+        <div class="password-list" id="recent-passwords">
+          <!-- Seznam hesel bude dynamicky přidán pomocí JS -->
+        </div>
+      </div>
+      <div class="password-section">
+        <div class="password-section-title">Všechna hesla</div>
+        <div class="password-list" id="all-passwords">
+          <!-- Seznam hesel bude dynamicky přidán pomocí JS -->
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Menu nastavení -->
+  <div class="settings-menu" id="settings-menu">
+    <div class="settings-menu-header">
+      <div class="settings-menu-title">Nastavení</div>
+      <div class="settings-menu-close" id="settings-menu-close">
+        <i class="fas fa-times"></i>
+      </div>
+    </div>
+    <div class="settings-menu-content">
+      <div class="settings-section">
+        <div class="settings-section-title">Obecné</div>
+        <div class="settings-option">
+          <div class="settings-option-label">Domovská stránka</div>
+          <input type="text" id="home-page-input" class="settings-input" placeholder="https://www.google.com">
+        </div>
+        <div class="settings-option">
+          <div class="settings-option-label">Vyhledávač</div>
+          <select id="search-engine-select" class="settings-select">
+            <option value="google">Google</option>
+            <option value="bing">Bing</option>
+            <option value="duckduckgo">DuckDuckGo</option>
+            <option value="seznam">Seznam</option>
+          </select>
+        </div>
+      </div>
+      <div class="settings-section">
+        <div class="settings-section-title">Hesla a zabezpečení</div>
+        <div class="settings-option">
+          <div class="settings-option-label">Automatické vyplňování hesel</div>
+          <label class="settings-switch">
+            <input type="checkbox" id="auto-fill-toggle" checked>
+            <span class="settings-slider"></span>
+          </label>
+        </div>
+        <div class="settings-option">
+          <div class="settings-option-label">Zdroje hesel</div>
+          <div class="settings-checkboxes">
+            <label>
+              <input type="checkbox" id="settings-keychain-source" checked> Keychain (macOS)
+            </label>
+            <label>
+              <input type="checkbox" id="settings-safari-source" checked> Safari
+            </label>
+            <label>
+              <input type="checkbox" id="settings-chrome-source" checked> Chrome
+            </label>
+            <label>
+              <input type="checkbox" id="settings-firefox-source" checked> Firefox
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="settings-section">
+        <div class="settings-section-title">Vzhled</div>
+        <div class="settings-option">
+          <div class="settings-option-label">Motiv</div>
+          <select id="theme-select" class="settings-select">
+            <option value="system">Podle systému</option>
+            <option value="light">Světlý</option>
+            <option value="dark">Tmavý</option>
+          </select>
+        </div>
+      </div>
+      <div class="settings-section settings-footer">
+        <button id="save-settings-button" class="button primary-button">Uložit nastavení</button>
+        <button id="reset-settings-button" class="button secondary-button">Obnovit výchozí</button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Načtení skriptů -->
+  <script src="./renderer.js"></script>
+</body>
+</html> 
