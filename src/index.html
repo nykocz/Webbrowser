@@ -9,27 +9,14 @@
   <link rel="stylesheet" href="../node_modules/@fortawesome/fontawesome-free/css/all.min.css">
 </head>
 <body>
-  <!-- Vlastní titulní lišta ve stylu macOS -->
-  <div class="titlebar">
+  <!-- Adresní řádek -->
+  <div class="address-bar">
     <div class="window-controls">
       <div class="window-control close-button" id="close-button"></div>
       <div class="window-control minimize-button" id="minimize-button"></div>
       <div class="window-control maximize-button" id="maximize-button"></div>
     </div>
     
-    <!-- Panely prohlížeče -->
-    <div class="tabs-container" id="tabs-container">
-      <!-- Panely budou dynamicky přidávány pomocí JS -->
-    </div>
-    
-    <!-- Tlačítko pro nový panel -->
-    <div class="new-tab-button" id="new-tab-button">
-      <i class="fas fa-plus"></i>
-    </div>
-  </div>
-  
-  <!-- Adresní řádek -->
-  <div class="address-bar">
     <div class="navigation-buttons">
       <div class="nav-left-buttons">
         <div class="nav-button" id="back-button">
@@ -50,11 +37,21 @@
       </div>
     </div>
     
-    <div class="url-input-container">
-      <input type="text" class="url-input" id="url-input" placeholder="Zadejte adresu nebo vyhledávejte...">
-      <div class="url-suggestions" id="url-suggestions">
-        <!-- Našeptávané položky budou dynamicky přidávány pomocí JS -->
+    <div class="address-content">
+      <div class="url-input-container" id="url-input-container">
+        <input type="text" class="url-input" id="url-input" placeholder="Zadejte adresu nebo vyhledávejte...">
+        <div class="url-suggestions" id="url-suggestions">
+          <!-- Našeptávané položky budou dynamicky přidávány pomocí JS -->
+        </div>
       </div>
+      
+      <div class="tabs-container" id="tabs-container">
+        <!-- Panely budou dynamicky přidávány pomocí JS -->
+      </div>
+    </div>
+    
+    <div class="new-tab-button" id="new-tab-button">
+      <i class="fas fa-plus"></i>
     </div>
     
     <div class="nav-right-buttons">
@@ -150,7 +147,9 @@
     </div>
     <div class="settings-menu-content">
       <div class="settings-section">
-        <div class="settings-section-title">Obecné</div>
+        <div class="settings-section-title">
+          <i class="fas fa-home fa-fw"></i> Obecné
+        </div>
         <div class="settings-option">
           <div class="settings-option-label">Domovská stránka</div>
           <input type="text" id="home-page-input" class="settings-input" placeholder="https://www.google.com">
@@ -166,7 +165,9 @@
         </div>
       </div>
       <div class="settings-section">
-        <div class="settings-section-title">Hesla a zabezpečení</div>
+        <div class="settings-section-title">
+          <i class="fas fa-shield-alt fa-fw"></i> Hesla a zabezpečení
+        </div>
         <div class="settings-option">
           <div class="settings-option-label">Automatické vyplňování hesel</div>
           <label class="settings-switch">
@@ -193,7 +194,9 @@
         </div>
       </div>
       <div class="settings-section">
-        <div class="settings-section-title">Vzhled</div>
+        <div class="settings-section-title">
+          <i class="fas fa-paint-brush fa-fw"></i> Vzhled
+        </div>
         <div class="settings-option">
           <div class="settings-option-label">Motiv</div>
           <select id="theme-select" class="settings-select">
@@ -204,8 +207,12 @@
         </div>
       </div>
       <div class="settings-section settings-footer">
-        <button id="save-settings-button" class="button primary-button">Uložit nastavení</button>
-        <button id="reset-settings-button" class="button secondary-button">Obnovit výchozí</button>
+        <button id="save-settings-button" class="button primary-button">
+          <i class="fas fa-save"></i> Uložit nastavení
+        </button>
+        <button id="reset-settings-button" class="button secondary-button">
+          <i class="fas fa-undo"></i> Obnovit výchozí
+        </button>
       </div>
     </div>
   </div>

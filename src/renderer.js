@@ -2,6 +2,7 @@
 const tabsContainer = document.getElementById('tabs-container');
 const webviewContainer = document.getElementById('webview-container');
 const urlInput = document.getElementById('url-input');
+const urlInputContainer = document.getElementById('url-input-container');
 const urlSuggestions = document.getElementById('url-suggestions');
 const newTabButton = document.getElementById('new-tab-button');
 const backButton = document.getElementById('back-button');
@@ -167,6 +168,57 @@ function createTab(url = DEFAULT_URL) {
     tabElement.classList.add('loading');
   });
   
+  // Přidání event listeneru pro kliknutí do webview - skryje URL input
+  webviewElement.addEventListener('focus', () => {
+    if (urlInputContainer.classList.contains('active')) {
+      toggleUrlInput(false);
+    }
+  });
+  
+  // Další listener pro kliknutí přímo do webview
+  webviewElement.addEventListener('click', () => {
+    if (urlInputContainer.classList.contains('active')) {
+      toggleUrlInput(false);
+    }
+    
+    // Odebereme třídu selected z aktivního tabu
+    if (activeTabId) {
+      const tabElement = document.getElementById(activeTabId);
+      if (tabElement) {
+        tabElement.classList.remove('selected');
+      }
+    }
+  });
+  
+  // Přidáme skript pro zachycení kliknutí do webview přes IPC
+  webviewElement.addEventListener('dom-ready', () => {
+    webviewElement.executeJavaScript(`
+      document.addEventListener('click', () => {
+        if (window.ipcAvailable) {
+          window.ipc.sendToHost('webview-click');
+        } else {
+          window.postMessage({ type: 'webview-click' }, '*');
+        }
+      });
+    `);
+  });
+  
+  // Nasloucháme na zprávy z webview
+  webviewElement.addEventListener('ipc-message', (event) => {
+    if (event.channel === 'webview-click') {
+      if (urlInputContainer.classList.contains('active')) {
+        toggleUrlInput(false);
+        // Odebereme třídu selected z aktivního tabu
+        if (activeTabId) {
+          const tabElement = document.getElementById(activeTabId);
+          if (tabElement) {
+            tabElement.classList.remove('selected');
+          }
+        }
+      }
+    }
+  });
+  
   webviewElement.addEventListener('did-stop-loading', () => {
     const tabIconElement = tabElement.querySelector('.tab-icon i');
     tabIconElement.className = 'fas fa-globe';
@@ -199,20 +251,27 @@ function createTab(url = DEFAULT_URL) {
   webviewElement.addEventListener('did-navigate', (e) => {
     const currentUrl = e.url;
     tab.url = currentUrl;
+    
+    // Aktualizace URL v input poli, pokud je panel aktivní
     if (tab.id === activeTabId) {
       urlInput.value = currentUrl;
-      updateNavigationButtons(webviewElement);
     }
     
-    // Přidat do historie pro našeptávač
-    addToHistory(currentUrl, tab.title || 'Bez názvu');
+    // Přidání do historie
+    addToHistory(currentUrl, tab.title);
     
-    // Extrahovat doménu pro detekci přihlašovacích formulářů
+    // Aktualizace navigačních tlačítek
+    updateNavigationButtons(webviewElement);
+    
+    // Detekce domény pro našeptávání přihlašovacích údajů
     try {
-      const domain = new URL(currentUrl).hostname;
-      detectLoginForms(webviewElement, domain);
-    } catch (error) {
-      console.error('Neplatná URL:', error);
+      const domainMatch = currentUrl.match(/^(?:https?:\/\/)?(?:[^@\n]+@)?(?:www\.)?([^:\/\n]+)/im);
+      if (domainMatch && domainMatch[1]) {
+        currentDomain = domainMatch[1];
+        detectLoginForms(webviewElement, currentDomain);
+      }
+    } catch (e) {
+      console.error('Chyba při zpracování URL:', e);
     }
   });
   
@@ -225,90 +284,148 @@ function createTab(url = DEFAULT_URL) {
     }
   });
   
-  // Event pro zavření panelu
-  tabElement.querySelector('.tab-close').addEventListener('click', (e) => {
+  // Kliknutí na panel pro jeho aktivaci
+  tabElement.addEventListener('click', (e) => {
+    // Pokud je kliknuto na zavírací tlačítko, nezpracovávat aktivaci
+    if (e.target.closest('.tab-close')) {
+      return;
+    }
+    
+    // Pokud je tab již aktivní a má třídu selected, zobrazit URL input
+    if (tabElement.classList.contains('active') && tabElement.classList.contains('selected')) {
+      toggleUrlInput(true);
+      urlInput.focus();
+      urlInput.select();
+      return;
+    }
+    
+    // Pokud je tab již aktivní, ale nemá třídu selected, přidat mu třídu selected
+    if (tabElement.classList.contains('active')) {
+      tabElement.classList.add('selected');
+      return;
+    }
+    
+    // Odstranění třídy selected ze všech tabů
+    document.querySelectorAll('.tab').forEach(tab => {
+      tab.classList.remove('selected');
+    });
+    
+    // Jinak aktivovat panel
+    activateTab(tabId);
+  });
+  
+  // Kliknutí na zavírací tlačítko
+  const tabCloseButton = tabElement.querySelector('.tab-close');
+  tabCloseButton.addEventListener('click', (e) => {
     e.stopPropagation();
     closeTab(tabId);
   });
   
-  // Event pro aktivaci panelu
-  tabElement.addEventListener('click', () => {
-    activateTab(tabId);
-  });
+  // Aktivace nového panelu
+  activateTab(tabId);
   
   // Animace pro nový panel
   setTimeout(() => {
     tabElement.classList.add('tab-animated');
   }, 10);
   
-  // Aktivování vytvořeného panelu
-  activateTab(tabId);
-  
   return tab;
 }
 
-// Aktivování panelu
+// Aktivace panelu
 function activateTab(tabId) {
-  // Skrytí všech webview
-  document.querySelectorAll('webview').forEach(webview => {
-    webview.style.display = 'none';
-  });
-  
-  // Deaktivování všech panelů
+  // Deaktivace všech panelů
   document.querySelectorAll('.tab').forEach(tab => {
     tab.classList.remove('active');
+    tab.classList.remove('selected');
   });
   
-  // Nalezení a aktivování vybraného panelu
-  const tab = tabs.find(tab => tab.id === tabId);
+  document.querySelectorAll('webview, .settings-webview-container').forEach(element => {
+    element.style.display = 'none';
+  });
+  
+  // Aktivace vybraného panelu
+  const tab = tabs.find(t => t.id === tabId);
   if (tab) {
-    document.getElementById(tab.id).classList.add('active');
-    const webview = document.getElementById(tab.webviewId);
-    webview.style.display = 'flex';
-    urlInput.value = tab.url;
+    const tabElement = document.getElementById(tabId);
+    const contentElement = document.getElementById(tab.webviewId);
+    
+    tabElement.classList.add('active');
+    contentElement.style.display = tab.isSettings ? 'block' : 'flex';
+    
     activeTabId = tabId;
     
-    // Aktualizace titulku hlavního okna
+    // Aktualizace URL v input poli (pouze pro normální taby)
+    if (!tab.isSettings) {
+      urlInput.value = tab.url || '';
+    } else {
+      urlInput.value = 'about:settings';
+    }
+    
+    // Aktualizace navigačních tlačítek (pouze pro normální taby)
+    if (!tab.isSettings && contentElement.tagName === 'WEBVIEW') {
+      updateNavigationButtons(contentElement);
+    } else {
+      // Zakázat navigační tlačítka pro settings tab
+      backButton.classList.add('disabled');
+      forwardButton.classList.add('disabled');
+      reloadButton.classList.add('disabled');
+    }
+    
+    // Aktualizace title hlavního okna
     document.title = `${tab.title} - Electron Prohlížeč`;
     
-    // Aktualizace stavu navigačních tlačítek
-    updateNavigationButtons(webview);
+    // Skrytí URL inputu při přepnutí tabu
+    toggleUrlInput(false);
+  }
+}
+
+// Nová funkce pro přepínání mezi URL input a taby
+function toggleUrlInput(show) {
+  if (show) {
+    urlInputContainer.classList.add('active');
+    tabsContainer.classList.add('url-active');
+  } else {
+    urlInputContainer.classList.remove('active');
+    tabsContainer.classList.remove('url-active');
   }
 }
 
 // Zavření panelu
 function closeTab(tabId) {
-  const tabIndex = tabs.findIndex(tab => tab.id === tabId);
-  if (tabIndex === -1) return;
+  // Najít index panelu v poli
+  const tabIndex = tabs.findIndex(t => t.id === tabId);
   
-  // Získání elementu panelu pro animaci
-  const tabElement = document.getElementById(tabs[tabIndex].id);
-  
-  // Animace zavření panelu
-  tabElement.classList.add('tab-closing');
-  
-  // Vyčkání na dokončení animace
-  setTimeout(() => {
-    // Odstranění z DOM
+  if (tabIndex > -1) {
     const tab = tabs[tabIndex];
-    tabElement.remove();
-    document.getElementById(tab.webviewId).remove();
+    const tabElement = document.getElementById(tabId);
+    const webviewElement = document.getElementById(tab.webviewId);
     
-    // Odstranění z pole
-    tabs.splice(tabIndex, 1);
+    // Animace zavírání
+    tabElement.classList.add('tab-closing');
     
-    // Pokud byl panel aktivní, aktivujeme jiný
-    if (activeTabId === tabId) {
-      if (tabs.length > 0) {
-        // Aktivování nejbližšího panelu
-        const newActiveTab = tabs[Math.min(tabIndex, tabs.length - 1)];
-        activateTab(newActiveTab.id);
-      } else {
-        // Pokud nejsou žádné panely, vytvoříme nový
-        createTab();
+    // Odstranění po dokončení animace
+    setTimeout(() => {
+      // Odstranění elementů z DOM
+      tabElement.remove();
+      webviewElement.remove();
+      
+      // Odstranění z pole panelů
+      tabs.splice(tabIndex, 1);
+      
+      // Pokud byl zavřen aktivní panel, aktivovat jiný
+      if (tabId === activeTabId) {
+        if (tabs.length > 0) {
+          // Aktivace následujícího nebo předchozího panelu
+          const nextTabIndex = Math.min(tabIndex, tabs.length - 1);
+          activateTab(tabs[nextTabIndex].id);
+        } else {
+          // Pokud nezůstal žádný panel, vytvořit nový
+          createTab();
+        }
       }
-    }
-  }, 150); // Doba trvání animace
+    }, 150);
+  }
 }
 
 // Aktualizace navigačních tlačítek
@@ -410,26 +527,64 @@ homeButton.addEventListener('click', () => {
 // Událost pro vstup a navigaci adresního řádku
 urlInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') {
-    e.preventDefault();
-    
-    if (activeTabId) {
-      const tab = tabs.find(tab => tab.id === activeTabId);
-      if (tab) {
-        let url = urlInput.value.trim();
-        
-        // Jednoduché doplnění protokolu
-        if (!url.startsWith('http://') && !url.startsWith('https://') && !url.startsWith('file://')) {
-          // Pokud obsahuje tečku, považujeme to za doménu
-          if (url.includes('.')) {
-            url = 'https://' + url;
-          } else {
-            // Jinak považujeme za vyhledávání
-            url = `https://www.google.com/search?q=${encodeURIComponent(url)}`;
+    const url = urlInput.value.trim();
+    if (url) {
+      let fullUrl = url;
+      
+      // Pokud URL nezačíná protokolem, přidat https://
+      if (!url.match(/^[a-zA-Z]+:\/\//)) {
+        // Pokud obsahuje mezery, považovat za vyhledávání
+        if (url.includes(' ')) {
+          const searchEngine = appSettings ? appSettings.searchEngine : 'google';
+          let searchUrl;
+          
+          switch (searchEngine) {
+            case 'bing':
+              searchUrl = 'https://www.bing.com/search?q=';
+              break;
+            case 'duckduckgo':
+              searchUrl = 'https://duckduckgo.com/?q=';
+              break;
+            case 'seznam':
+              searchUrl = 'https://search.seznam.cz/?q=';
+              break;
+            default:
+              searchUrl = 'https://www.google.com/search?q=';
           }
+          
+          fullUrl = searchUrl + encodeURIComponent(url);
+        } else {
+          fullUrl = 'https://' + url;
         }
-        
-        const webview = document.getElementById(tab.webviewId);
-        webview.loadURL(url);
+      }
+      
+      // Navigace na URL v aktivním panelu
+      const activeTab = tabs.find(t => t.id === activeTabId);
+      if (activeTab) {
+        const webviewElement = document.getElementById(activeTab.webviewId);
+        webviewElement.setAttribute('src', fullUrl);
+      }
+      
+      // Skrytí URL inputu po odeslání
+      toggleUrlInput(false);
+      
+      // Odebereme třídu selected z aktivního tabu
+      if (activeTabId) {
+        const tabElement = document.getElementById(activeTabId);
+        if (tabElement) {
+          tabElement.classList.remove('selected');
+        }
+      }
+    }
+  } else if (e.key === 'Escape') {
+    // Skrytí URL inputu při stisknutí Escape
+    toggleUrlInput(false);
+    
+    // Odebereme třídu selected z aktivního tabu
+    if (activeTabId) {
+      const tabElement = document.getElementById(activeTabId);
+      if (tabElement) {
+        tabElement.classList.remove('selected');
       }
     }
   }
@@ -441,10 +596,9 @@ bookmarkButton.addEventListener('click', () => {
   alert('Funkce záložek bude implementována v budoucí verzi.');
 });
 
-// Událost pro tlačítko nastavení (zatím jen ukazatel)
+// Událost pro tlačítko nastavení
 settingsButton.addEventListener('click', () => {
-  // Pro budoucí implementaci nastavení
-  //alert('Funkce nastavení bude implementována v budoucí verzi.');
+  createSettingsTab(tabs, tabsContainer, webviewContainer, activateTab, toggleUrlInput, urlInput, closeTab, DEFAULT_URL, appSettings, passwordSources, updatePasswordLists, applyTheme, settingsKeychainSource, settingsSafariSource, settingsChromeSource, settingsFirefoxSource);
 });
 
 // Funkce pro filtrování a zobrazení našeptávače
@@ -624,6 +778,15 @@ function addSuggestionItem(item) {
         webview.loadURL(item.url);
         urlInput.value = item.url;
         urlSuggestions.classList.remove('visible');
+        
+        // Skrytí URL inputu po výběru položky
+        toggleUrlInput(false);
+        
+        // Odebereme třídu selected z aktivního tabu
+        const tabElement = document.getElementById(activeTabId);
+        if (tabElement) {
+          tabElement.classList.remove('selected');
+        }
       }
     }
   });
@@ -1482,7 +1645,9 @@ function hidePasswordMenu() {
 }
 
 // Událost pro tlačítko nastavení
-settingsButton.addEventListener('click', toggleSettingsMenu);
+settingsButton.addEventListener('click', () => {
+  createSettingsTab(tabs, tabsContainer, webviewContainer, activateTab, toggleUrlInput, urlInput, closeTab, DEFAULT_URL, appSettings, passwordSources, updatePasswordLists, applyTheme, settingsKeychainSource, settingsSafariSource, settingsChromeSource, settingsFirefoxSource);
+});
 
 // Zavření menu nastavení
 settingsMenuClose.addEventListener('click', hideSettingsMenu);
@@ -1732,4 +1897,481 @@ urlInput.addEventListener('keydown', (e) => {
     e.preventDefault();
     urlSuggestions.classList.remove('visible');
   }
-}); 
+});
+
+// Event listenery pro kliknutí mimo URL input pro jeho skrytí
+document.addEventListener('click', (e) => {
+  // Pokud je URL input aktivní a kliknutí není na URL input nebo tab
+  if (
+    urlInputContainer.classList.contains('active') && 
+    !e.target.closest('#url-input-container') && 
+    !e.target.closest('.tab')
+  ) {
+    toggleUrlInput(false);
+    
+    // Odebereme třídu selected z aktivního tabu
+    if (activeTabId) {
+      const tabElement = document.getElementById(activeTabId);
+      if (tabElement) {
+        tabElement.classList.remove('selected');
+      }
+    }
+  }
+});
+
+// Vytvoření HTML obsahu pro nastavení jako tab
+function getSettingsContent() {
+  return `
+    <div class="tab-settings-container">
+      <div class="tab-settings-sidebar">
+        <div class="settings-sidebar-header">
+          <div class="settings-sidebar-title">Nastavení</div>
+        </div>
+        <div class="settings-sidebar-menu">
+          <div class="settings-sidebar-item active" data-section="general">
+            <i class="fas fa-home fa-fw"></i> Obecné
+          </div>
+          <div class="settings-sidebar-item" data-section="security">
+            <i class="fas fa-shield-alt fa-fw"></i> Hesla a zabezpečení
+          </div>
+          <div class="settings-sidebar-item" data-section="appearance">
+            <i class="fas fa-paint-brush fa-fw"></i> Vzhled
+          </div>
+          <div class="settings-sidebar-item" data-section="history">
+            <i class="fas fa-history fa-fw"></i> Historie
+          </div>
+          <div class="settings-sidebar-item" data-section="account">
+            <i class="fas fa-user fa-fw"></i> Účet
+          </div>
+          <div class="settings-sidebar-item" data-section="about">
+            <i class="fas fa-info-circle fa-fw"></i> O aplikaci
+          </div>
+        </div>
+      </div>
+      <div class="tab-settings-content">
+        <div class="settings-section active" id="general-section">
+          <div class="settings-section-title">
+            Obecné
+          </div>
+          <div class="settings-option">
+            <div class="settings-option-label">Domovská stránka</div>
+            <input type="text" id="tab-home-page-input" class="settings-input" placeholder="https://www.google.com">
+          </div>
+          <div class="settings-option">
+            <div class="settings-option-label">Vyhledávač</div>
+            <select id="tab-search-engine-select" class="settings-select">
+              <option value="google">Google</option>
+              <option value="bing">Bing</option>
+              <option value="duckduckgo">DuckDuckGo</option>
+              <option value="seznam">Seznam</option>
+            </select>
+          </div>
+        </div>
+        <div class="settings-section" id="security-section">
+          <div class="settings-section-title">
+            Hesla a zabezpečení
+          </div>
+          <div class="settings-option">
+            <div class="settings-option-label">Automatické vyplňování hesel</div>
+            <label class="settings-switch">
+              <input type="checkbox" id="tab-auto-fill-toggle" checked>
+              <span class="settings-slider"></span>
+            </label>
+          </div>
+          <div class="settings-option">
+            <div class="settings-option-label">Zdroje hesel</div>
+            <div class="settings-checkboxes">
+              <label class="settings-checkbox">
+                <input type="checkbox" id="tab-settings-keychain-source" checked>
+                <span class="checkbox-label">Keychain (macOS)</span>
+              </label>
+              <label class="settings-checkbox">
+                <input type="checkbox" id="tab-settings-safari-source" checked>
+                <span class="checkbox-label">Safari</span>
+              </label>
+              <label class="settings-checkbox">
+                <input type="checkbox" id="tab-settings-chrome-source" checked>
+                <span class="checkbox-label">Chrome</span>
+              </label>
+              <label class="settings-checkbox">
+                <input type="checkbox" id="tab-settings-firefox-source" checked>
+                <span class="checkbox-label">Firefox</span>
+              </label>
+            </div>
+          </div>
+        </div>
+        <div class="settings-section" id="appearance-section">
+          <div class="settings-section-title">
+            Vzhled
+          </div>
+          <div class="settings-option">
+            <div class="settings-option-label">Motiv</div>
+            <select id="tab-theme-select" class="settings-select">
+              <option value="system">Podle systému</option>
+              <option value="light">Světlý</option>
+              <option value="dark">Tmavý</option>
+            </select>
+          </div>
+        </div>
+        <div class="settings-section" id="history-section">
+          <div class="settings-section-title">
+            Historie
+          </div>
+          <div class="settings-option">
+            <div class="settings-option-label">Ukládat historii prohlížení</div>
+            <label class="settings-switch">
+              <input type="checkbox" id="tab-save-history-toggle" checked>
+              <span class="settings-slider"></span>
+            </label>
+          </div>
+          <div class="settings-option">
+            <div class="settings-option-label">Automaticky mazat historii</div>
+            <select id="tab-clear-history-select" class="settings-select">
+              <option value="never">Nikdy</option>
+              <option value="day">Každý den</option>
+              <option value="week">Každý týden</option>
+              <option value="month">Každý měsíc</option>
+            </select>
+          </div>
+        </div>
+        <div class="settings-section" id="account-section">
+          <div class="settings-section-title">
+            Účet
+          </div>
+          <div class="settings-option">
+            <div class="settings-option-label">Přihlášení k účtu</div>
+            <input type="email" id="tab-account-email-input" class="settings-input" placeholder="email@example.com">
+          </div>
+          <div class="settings-option">
+            <div class="settings-option-label">Synchronizace</div>
+            <label class="settings-switch">
+              <input type="checkbox" id="tab-sync-toggle" checked>
+              <span class="settings-slider"></span>
+            </label>
+          </div>
+          <div class="settings-option">
+            <div class="settings-option-label">Synchronizovat</div>
+            <div class="settings-checkboxes">
+              <label class="settings-checkbox">
+                <input type="checkbox" id="tab-sync-bookmarks" checked>
+                <span class="checkbox-label">Záložky</span>
+              </label>
+              <label class="settings-checkbox">
+                <input type="checkbox" id="tab-sync-history" checked>
+                <span class="checkbox-label">Historie</span>
+              </label>
+              <label class="settings-checkbox">
+                <input type="checkbox" id="tab-sync-passwords" checked>
+                <span class="checkbox-label">Hesla</span>
+              </label>
+              <label class="settings-checkbox">
+                <input type="checkbox" id="tab-sync-settings" checked>
+                <span class="checkbox-label">Nastavení</span>
+              </label>
+            </div>
+          </div>
+        </div>
+        <div class="settings-section" id="about-section">
+          <div class="settings-section-title">
+            O aplikaci
+          </div>
+          <div class="settings-info-card">
+            <div class="settings-info-item">
+              <div class="info-label">Verze</div>
+              <div class="info-value">1.0.0</div>
+            </div>
+            <div class="settings-info-item">
+              <div class="info-label">Vývojář</div>
+              <div class="info-value">Webbrowser Team</div>
+            </div>
+            <div class="settings-info-item">
+              <div class="info-label">Licence</div>
+              <div class="info-value">MIT</div>
+            </div>
+          </div>
+        </div>
+        <div class="settings-section settings-footer">
+          <button id="tab-save-settings-button" class="button primary-button">
+            Uložit
+          </button>
+          <button id="tab-reset-settings-button" class="button secondary-button">
+            Obnovit výchozí
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// Vytvoření tabu pro nastavení
+function createSettingsTab() {
+  // Zkontrolovat, zda nastavení tab již existuje
+  const existingSettingsTab = tabs.find(tab => tab.isSettings);
+  
+  if (existingSettingsTab) {
+    // Aktivovat existující tab s nastavením
+    activateTab(existingSettingsTab.id);
+    return;
+  }
+  
+  const tabId = `tab-${Date.now()}`;
+  const webviewId = `webview-${Date.now()}`;
+  
+  // Vytvoření nového panelu
+  const tabElement = document.createElement('div');
+  tabElement.className = 'tab';
+  tabElement.id = tabId;
+  tabElement.innerHTML = `
+    <div class="tab-icon">
+      <i class="fas fa-cog"></i>
+    </div>
+    <div class="tab-title">Nastavení</div>
+    <div class="tab-close">
+      <i class="fas fa-times"></i>
+    </div>
+  `;
+  
+  // Vytvoření kontejneru pro obsah nastavení místo webview
+  const settingsContainer = document.createElement('div');
+  settingsContainer.id = webviewId;
+  settingsContainer.className = 'settings-webview-container';
+  settingsContainer.innerHTML = getSettingsContent();
+  
+  // Přidání do DOM
+  tabsContainer.appendChild(tabElement);
+  webviewContainer.appendChild(settingsContainer);
+  
+  // Přidání do pole panelů
+  const tab = {
+    id: tabId,
+    webviewId: webviewId,
+    url: 'about:settings',
+    title: 'Nastavení',
+    favicon: null,
+    isSettings: true
+  };
+  
+  tabs.push(tab);
+  
+  // Kliknutí na panel pro jeho aktivaci
+  tabElement.addEventListener('click', (e) => {
+    // Pokud je kliknuto na zavírací tlačítko, nezpracovávat aktivaci
+    if (e.target.closest('.tab-close')) {
+      return;
+    }
+    
+    // Pokud je tab již aktivní a má třídu selected, zobrazit URL input
+    if (tabElement.classList.contains('active') && tabElement.classList.contains('selected')) {
+      toggleUrlInput(true);
+      urlInput.focus();
+      urlInput.select();
+      return;
+    }
+    
+    // Pokud je tab již aktivní, ale nemá třídu selected, přidat mu třídu selected
+    if (tabElement.classList.contains('active')) {
+      tabElement.classList.add('selected');
+      return;
+    }
+    
+    // Odstranění třídy selected ze všech tabů
+    document.querySelectorAll('.tab').forEach(tab => {
+      tab.classList.remove('selected');
+    });
+    
+    // Jinak aktivovat panel
+    activateTab(tabId);
+  });
+  
+  // Kliknutí na zavírací tlačítko
+  const tabCloseButton = tabElement.querySelector('.tab-close');
+  tabCloseButton.addEventListener('click', (e) => {
+    e.stopPropagation();
+    closeTab(tabId);
+  });
+  
+  // Aktivace nového panelu
+  activateTab(tabId);
+  
+  // Animace pro nový panel
+  setTimeout(() => {
+    tabElement.classList.add('tab-animated');
+  }, 10);
+  
+  // Inicializace hodnot formuláře nastavení
+  setTimeout(() => {
+    initTabSettingsValues();
+    setupTabSettingsHandlers();
+  }, 100);
+  
+  return tab;
+}
+
+// Inicializace hodnot v nastavení
+function initTabSettingsValues() {
+  if (!appSettings) return;
+  
+  const homePageInput = document.getElementById('tab-home-page-input');
+  const searchEngineSelect = document.getElementById('tab-search-engine-select');
+  const autoFillToggle = document.getElementById('tab-auto-fill-toggle');
+  const keychainSource = document.getElementById('tab-settings-keychain-source');
+  const safariSource = document.getElementById('tab-settings-safari-source');
+  const chromeSource = document.getElementById('tab-settings-chrome-source');
+  const firefoxSource = document.getElementById('tab-settings-firefox-source');
+  const themeSelect = document.getElementById('tab-theme-select');
+  
+  if (homePageInput) homePageInput.value = appSettings.startPage || DEFAULT_URL;
+  if (searchEngineSelect) searchEngineSelect.value = appSettings.searchEngine || 'google';
+  if (autoFillToggle) autoFillToggle.checked = appSettings.autoFill;
+  
+  if (keychainSource) keychainSource.checked = appSettings.passwordSources?.keychain !== false;
+  if (safariSource) safariSource.checked = appSettings.passwordSources?.safari !== false;
+  if (chromeSource) chromeSource.checked = appSettings.passwordSources?.chrome !== false;
+  if (firefoxSource) firefoxSource.checked = appSettings.passwordSources?.firefox !== false;
+  
+  if (themeSelect) themeSelect.value = appSettings.theme || 'system';
+}
+
+// Nastavení event handlerů pro tab nastavení
+function setupTabSettingsHandlers() {
+  const saveButton = document.getElementById('tab-save-settings-button');
+  const resetButton = document.getElementById('tab-reset-settings-button');
+  
+  if (saveButton) {
+    saveButton.addEventListener('click', saveTabSettings);
+  }
+  
+  if (resetButton) {
+    resetButton.addEventListener('click', resetTabSettings);
+  }
+  
+  // Přidání handleru pro kliknutí na položky v menu
+  const sidebarItems = document.querySelectorAll('.settings-sidebar-item');
+  sidebarItems.forEach(item => {
+    item.addEventListener('click', () => {
+      // Odstranění aktivní třídy ze všech položek
+      sidebarItems.forEach(i => i.classList.remove('active'));
+      
+      // Přidání aktivní třídy na kliknutou položku
+      item.classList.add('active');
+      
+      // Získání sekce, kterou chceme zobrazit
+      const sectionId = item.getAttribute('data-section');
+      
+      // Skrytí všech sekcí
+      const sections = document.querySelectorAll('.settings-section');
+      sections.forEach(section => section.classList.remove('active'));
+      
+      // Zobrazení vybrané sekce
+      const targetSection = document.getElementById(`${sectionId}-section`);
+      if (targetSection) {
+        targetSection.classList.add('active');
+      }
+    });
+  });
+}
+
+// Uložení nastavení z tabu
+async function saveTabSettings() {
+  try {
+    const homePageInput = document.getElementById('tab-home-page-input');
+    const searchEngineSelect = document.getElementById('tab-search-engine-select');
+    const autoFillToggle = document.getElementById('tab-auto-fill-toggle');
+    const keychainSource = document.getElementById('tab-settings-keychain-source');
+    const safariSource = document.getElementById('tab-settings-safari-source');
+    const chromeSource = document.getElementById('tab-settings-chrome-source');
+    const firefoxSource = document.getElementById('tab-settings-firefox-source');
+    const themeSelect = document.getElementById('tab-theme-select');
+    
+    if (!homePageInput || !searchEngineSelect || !autoFillToggle || 
+        !keychainSource || !safariSource || !chromeSource || !firefoxSource || !themeSelect) {
+      console.error('Některé elementy nastavení nebyly nalezeny');
+      return;
+    }
+    
+    const newSettings = {
+      startPage: homePageInput.value,
+      searchEngine: searchEngineSelect.value,
+      autoFill: autoFillToggle.checked,
+      passwordSources: {
+        keychain: keychainSource.checked,
+        safari: safariSource.checked,
+        chrome: chromeSource.checked,
+        firefox: firefoxSource.checked
+      },
+      theme: themeSelect.value
+    };
+    
+    // Aktualizace nastavení v main procesu
+    const result = await window.api.saveSettings(newSettings);
+    
+    if (result.success) {
+      // Aktualizace lokálního objektu nastavení
+      appSettings = newSettings;
+      
+      // Aktualizace zdrojů hesel ve správci hesel
+      passwordSources.keychain.checked = newSettings.passwordSources.keychain;
+      passwordSources.safari.checked = newSettings.passwordSources.safari;
+      passwordSources.chrome.checked = newSettings.passwordSources.chrome;
+      passwordSources.firefox.checked = newSettings.passwordSources.firefox;
+      
+      // Aktualizace výchozí URL pro nové panely
+      DEFAULT_URL = newSettings.startPage;
+      
+      // Aplikace motivu
+      applyTheme(newSettings.theme);
+      
+      // Také aktualizovat hodnoty v původním menu nastavení
+      homePageInput.value = newSettings.startPage;
+      searchEngineSelect.value = newSettings.searchEngine;
+      autoFillToggle.checked = newSettings.autoFill;
+      settingsKeychainSource.checked = newSettings.passwordSources.keychain;
+      settingsSafariSource.checked = newSettings.passwordSources.safari;
+      settingsChromeSource.checked = newSettings.passwordSources.chrome;
+      settingsFirefoxSource.checked = newSettings.passwordSources.firefox;
+      themeSelect.value = newSettings.theme;
+      
+      // Aktualizace seznamu hesel
+      updatePasswordLists();
+    }
+  } catch (error) {
+    console.error('Chyba při ukládání nastavení:', error);
+  }
+}
+
+// Obnovení výchozích nastavení v tabu
+function resetTabSettings() {
+  // Výchozí hodnoty
+  const defaultSettings = {
+    startPage: 'https://www.google.com',
+    searchEngine: 'google',
+    autoFill: true,
+    passwordSources: {
+      keychain: true,
+      safari: true,
+      chrome: true,
+      firefox: true
+    },
+    theme: 'system'
+  };
+  
+  // Nastavení hodnot formuláře
+  const homePageInput = document.getElementById('tab-home-page-input');
+  const searchEngineSelect = document.getElementById('tab-search-engine-select');
+  const autoFillToggle = document.getElementById('tab-auto-fill-toggle');
+  const keychainSource = document.getElementById('tab-settings-keychain-source');
+  const safariSource = document.getElementById('tab-settings-safari-source');
+  const chromeSource = document.getElementById('tab-settings-chrome-source');
+  const firefoxSource = document.getElementById('tab-settings-firefox-source');
+  const themeSelect = document.getElementById('tab-theme-select');
+  
+  if (homePageInput) homePageInput.value = defaultSettings.startPage;
+  if (searchEngineSelect) searchEngineSelect.value = defaultSettings.searchEngine;
+  if (autoFillToggle) autoFillToggle.checked = defaultSettings.autoFill;
+  
+  if (keychainSource) keychainSource.checked = defaultSettings.passwordSources.keychain;
+  if (safariSource) safariSource.checked = defaultSettings.passwordSources.safari;
+  if (chromeSource) chromeSource.checked = defaultSettings.passwordSources.chrome;
+  if (firefoxSource) firefoxSource.checked = defaultSettings.passwordSources.firefox;
+    if (themeSelect) themeSelect.value = defaultSettings.theme;
+} 

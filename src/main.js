@@ -72,7 +72,7 @@ function createWindow() {
     titleBarOverlay: false,
     trafficLightPosition: { x: -100, y: -100 }, // Skrytí semaforu posunutím mimo okno
     transparent: true, // Umožní transparentnost pro vibrancy efekt
-    vibrancy: 'under-window', // Aktivuje vibrancy efekt na macOS
+    vibrancy: 'hud', // Aktivuje vibrancy efekt na macOS
     visualEffectState: 'active', // Zajistí, že vibrancy efekt je aktivní
     backgroundColor: '#00000000', // Transparentní pozadí
     webPreferences: {
